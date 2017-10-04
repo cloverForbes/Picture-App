@@ -7,12 +7,10 @@ const  fs = require('fs'),
 module.exports = {
 
   submit : (req,res) => {
-
-
-
-      const url = 'https://api.bigcommerce.com/stores/et6hidb37e/v2/products';
-      const id = 'ris8bseq50w7i9b0h4cynycftc4zbj8';
-      const token = 'svop48vqxuyalh0ayhj8vro7vqivju7';
+      
+      const url = `${req.body.url}products`;
+      const id = req.body.name;
+      const token = req.body.token;
       let options = {
           url: url,
           headers: {
@@ -71,7 +69,7 @@ module.exports = {
   },
 
   showHome: (req,res) => {
-      res.sendFile(path.join(__dirname, '../', 'index.html'));
+      res.render('pages/index');
   }
 };
 

@@ -1,0 +1,62 @@
+.textcenter {
+    text-align: center;
+}
+
+.textleft {
+    text-align: left;
+}
+
+.dlbutton {
+    font-weight: 600;
+    font-size: 16px;
+    color: white;
+    text-transform: uppercase;
+    border-radius: 0;
+    border: none;
+    background-color: #4b71fc;
+    padding: 15px 30px;
+    margin: 0;
+    text-align: center;
+}
+
+h1 {
+    font-size: 48px;
+    font-weight: 500;
+    line-height: 1;
+    color: #34313f;
+    margin-top: 10%;
+}
+
+h3 {
+    font-size: 26px;
+    font-weight: 200;
+    line-height: 1;
+    margin-top: 5%;
+}
+
+.fa-picture-o {
+    font-size: 20em;
+}
+
+.forms {
+    margin-right: 0;
+    margin-left: 0;
+}
+
+@media screen and (max-width: 768px)
+
+{
+
+    .fa { display: none; }
+    .forms { margin: 10%;}
+    .textleft { text-align: center;}
+
+}
+
+body {
+    background: #f6f7f9;
+}
+
+btn {
+
+}
