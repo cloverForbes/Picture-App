@@ -5,5 +5,5 @@ const express = require('express'),
 module.exports = router;
 
 router.get('/', controller.showHome);
-router.post('/submit', controller.submit);
+router.post('/submit', controller.submitTwo);
 

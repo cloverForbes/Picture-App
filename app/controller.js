@@ -7,25 +7,26 @@ const  fs = require('fs'),
 module.exports = {
 
   submit : (req,res) => {
-      
       const url = `${req.body.url}products`;
       const id = req.body.name;
       const token = req.body.token;
       let options = {
           url: url,
           headers: {
-              'Accept': 'application/json',
               'X-Auth-Client': id,
-              'X-Auth-Token' : token
+              'X-Auth-Token' : token,
+              'Accept'       : 'application/json',
+              'Content-Type' : 'application/json'
           }
       };
-      /*getName(options);*/
+      console.log(options);
       fs.mkdir(path.join(__dirname,'../',`images${id}/`), () => {
           console.log('Created '+id)
       });
 
       request.get(options, (err, response, body) => {
           const foo = JSON.parse(body);
+          if(err){console.log(err);}
           foo.forEach((i, j) => {
               let name = i.name.replace(/\s/g,'');
               let url = i.images.url;
@@ -65,6 +66,90 @@ module.exports = {
               })
           })
 
+      })
+  },
+
+  submitTwo: (req,res) => {
+      const hash = req.body.url;
+      const url = `https://api.bigcommerce.com/stores/${hash}/v3`;
+      const id = req.body.name;
+      const token = req.body.token;
+      let options = {
+          url: url+'/catalog/products',
+          headers: {
+              'X-Auth-Client': id,
+              'X-Auth-Token' : token,
+              'Accept'       : 'application/json',
+              'Content-Type' : 'application/json',
+          }
+      };
+      fs.mkdir(path.join(__dirname,'../',`images${id}/`), () => {
+          console.log('Created '+id)
+      });
+      console.log(options);
+      request.get(options, (err,response,body) => {
+          const products = (JSON.parse(body).data);
+          let productIds = [];
+          let names = [];
+          products.forEach((i)=>{
+              productIds.push(i.id);
+              names.push(i.name.replace(/\s/g,''));
+          });
+
+          productIds.forEach((i,j) => {
+              let tempOptions = options;
+              tempOptions.url = `https://api.bigcommerce.com/stores/${hash}/v3/catalog/products/${i}/images`;
+              request.get(tempOptions, (err,res,body) => {
+                  const data = JSON.parse(body).data[0];
+                  if(!data){
+
+                     productIds.splice(j,1);
+                     names.splice(j,1);
+                  }
+              })
+          });
+
+
+
+
+          setTimeout(() => {
+              console.log(productIds);
+              productIds.forEach((i, j) => {
+                  let tempOptions = options;
+                  tempOptions.url = `https://api.bigcommerce.com/stores/${hash}/v3/catalog/products/${i}/images`;
+                  console.log(tempOptions);
+                  request.get(tempOptions, (err, responseTwo, images) => {
+                      const data = JSON.parse(images).data[0];
+                      let url = (data.url_zoom);
+                      download(url, `images${id}/${names[j]}${j === 0 ? '' : '-' + pad(j, 4)}`, () => {
+                          setTimeout(() => {
+                              if (j === productIds.length - 1) {
+                                  let output = fs.createWriteStream(__dirname + `/pictures${id.slice(4, 8)}.zip`);
+
+                                  let archive = archiver('zip', {
+                                      zlib: {level: 9}
+                                  });
+
+                                  output.on('close', () => {
+                                      res.download(__dirname + `/pictures${id.slice(4, 8)}.zip`, () => {
+                                          deleteImages(id);
+                                          fs.unlink(__dirname + `/pictures${id.slice(4, 8)}.zip`, () => {
+                                              console.log('Deleted Zip File')
+                                          })
+                                      });
+
+                                  });
+
+
+                                  archive.pipe(output);
+                                  archive.directory(path.join(__dirname, '../', `/images${id}/`), false);
+                                  archive.finalize();
+                              }
+                          }, 80)
+                      })
+                  })
+              })
+          }, 2000);
       })
   },
 
