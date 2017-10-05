@@ -113,39 +113,46 @@ module.exports = {
 
 
           setTimeout(() => {
-              console.log(productIds);
+              let total = productIds.length;
+              let current = 0;
+              let tempOptions = options;
+              drawStatus(current, total);
               productIds.forEach((i, j) => {
-                  let tempOptions = options;
                   tempOptions.url = `https://api.bigcommerce.com/stores/${hash}/v3/catalog/products/${i}/images`;
                   console.log(tempOptions);
                   request.get(tempOptions, (err, responseTwo, images) => {
-                      const data = JSON.parse(images).data[0];
-                      let url = (data.url_zoom);
-                      download(url, `images${id}/${names[j]}${j === 0 ? '' : '-' + pad(j, 4)}`, () => {
-                          setTimeout(() => {
-                              if (j === productIds.length - 1) {
-                                  let output = fs.createWriteStream(__dirname + `/pictures${id.slice(4, 8)}.zip`);
+                      const data = JSON.parse(images).data;
+                      total += data.length - 1;
+                      data.forEach((i,index) => {
+                          let url = (i.url_zoom);
+                          download(url, `images${id}/${names[j]}${index === 0 ? '' : '-' + pad(index, 4)}`, () => {
+                              current++;
+                              drawStatus(current,total);
+                              setTimeout(() => {
+                                  if (j === productIds.length - 1 && index === data.length -1)  {
+                                      let output = fs.createWriteStream(__dirname + `/pictures${id.slice(4, 8)}.zip`);
 
-                                  let archive = archiver('zip', {
-                                      zlib: {level: 9}
-                                  });
-
-                                  output.on('close', () => {
-                                      res.download(__dirname + `/pictures${id.slice(4, 8)}.zip`, () => {
-                                          deleteImages(id);
-                                          fs.unlink(__dirname + `/pictures${id.slice(4, 8)}.zip`, () => {
-                                              console.log('Deleted Zip File')
-                                          })
+                                      let archive = archiver('zip', {
+                                          zlib: {level: 9}
                                       });
 
-                                  });
+                                      output.on('close', () => {
+                                          res.download(__dirname + `/pictures${id.slice(4, 8)}.zip`, () => {
+                                              deleteImages(id);
+                                              fs.unlink(__dirname + `/pictures${id.slice(4, 8)}.zip`, () => {
+                                                  console.log('Deleted Zip File')
+                                              })
+                                          });
+
+                                      });
 
 
-                                  archive.pipe(output);
-                                  archive.directory(path.join(__dirname, '../', `/images${id}/`), false);
-                                  archive.finalize();
-                              }
-                          }, 80)
+                                      archive.pipe(output);
+                                      archive.directory(path.join(__dirname, '../', `/images${id}/`), false);
+                                      archive.finalize();
+                                  }
+                              }, 80)
+                          })
                       })
                   })
               })
@@ -190,4 +197,15 @@ const getName = options => {
         console.log(res);
         console.log(body);
     })
+};
+
+const drawStatus = (current, total) =>{
+    let status = '';
+    for(let x = 0; x < current; x++){
+        status = status.concat('#');
+    }
+    for(let x = 0; x < total - current; x++){
+        status = status.concat(' ');
+    }
+    console.log(`[${status}]`)
 };
