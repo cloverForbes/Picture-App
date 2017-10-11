@@ -2,78 +2,18 @@ const  fs = require('fs'),
        path = require('path'),
        request = require('request'),
        archiver = require('archiver'),
+       toolbox  = require('bc-api-toolbox');
        rimraf  = require('rimraf');
 
 module.exports = {
-
-  submit : (req,res) => {
-      const url = `${req.body.url}products`;
-      const id = req.body.name;
-      const token = req.body.token;
-      let options = {
-          url: url,
-          headers: {
-              'X-Auth-Client': id,
-              'X-Auth-Token' : token,
-              'Accept'       : 'application/json',
-              'Content-Type' : 'application/json'
-          }
-      };
-      console.log(options);
-      fs.mkdir(path.join(__dirname,'../',`images${id}/`), () => {
-          console.log('Created '+id)
-      });
-
-      request.get(options, (err, response, body) => {
-          const foo = JSON.parse(body);
-          if(err){console.log(err);}
-          foo.forEach((i, j) => {
-              let name = i.name.replace(/\s/g,'');
-              let url = i.images.url;
-              options.url = url;
-              request.get(options, (err, response, body) => {
-                  let data = JSON.parse(body);
-                  for(let x = 0; x < data.length; x++){
-                      let i = data[x];
-                      let url = i.zoom_url;
-                      download(url, `images${id}/${name}${x === 0 ? '': '-'+ pad(x, 4)}`,() => {
-                          setTimeout(() => {
-                              if(j === foo.length - 1 && x === data.length -1 ){
-                                  let output = fs.createWriteStream(__dirname + `/pictures${id.slice(4,8)}.zip`);
-
-                                  let archive = archiver('zip', {
-                                      zlib: {level: 9}
-                                  });
-
-                                  output.on('close', () => {
-                                      res.download(__dirname + `/pictures${id.slice(4,8)}.zip`,() => {
-                                         deleteImages(id);
-                                         fs.unlink(__dirname + `/pictures${id.slice(4,8)}.zip` , () => {
-                                             console.log('Deleted Zip File')
-                                         })
-                                      });
-
-                                  });
-
-
-                                  archive.pipe(output);
-                                  archive.directory(path.join(__dirname, '../', `/images${id}/`), false);
-                                  archive.finalize();
-                              }
-                          },80)
-                      })
-                  }
-              })
-          })
-
-      })
-  },
 
   submitTwo: (req,res) => {
       const hash = req.body.url;
       const url = `https://api.bigcommerce.com/stores/${hash}/v3`;
       const id = req.body.name;
       const token = req.body.token;
+      let total = 0;
+      let current = 0;
       let options = {
           url: url+'/catalog/products',
           headers: {
@@ -86,15 +26,16 @@ module.exports = {
       fs.mkdir(path.join(__dirname,'../',`images${id}/`), () => {
           console.log('Created '+id)
       });
-      console.log(options);
       request.get(options, (err,response,body) => {
           const products = (JSON.parse(body).data);
+          console.log(products.length);
           let productIds = [];
           let names = [];
           products.forEach((i)=>{
               productIds.push(i.id);
               names.push(i.name.replace(/\s/g,''));
           });
+
 
           productIds.forEach((i,j) => {
               let tempOptions = options;
@@ -109,39 +50,55 @@ module.exports = {
               })
           });
 
+          setTimeout(()=> {
+              let tempOptions = options;
+              productIds.forEach((i, j) => {
+                  tempOptions.url = `https://api.bigcommerce.com/stores/${hash}/v3/catalog/products/${i}/images`;
+                  request.get(tempOptions, (err, responseTwo, images) => {
+                      const data = JSON.parse(images).data;
+                      total += data.length;
+                  })
+              })
+          }, 3000);
+
 
 
 
           setTimeout(() => {
-              let total = productIds.length;
-              let current = 0;
+              console.log(total);
               let tempOptions = options;
-              drawStatus(current, total);
               productIds.forEach((i, j) => {
                   tempOptions.url = `https://api.bigcommerce.com/stores/${hash}/v3/catalog/products/${i}/images`;
-                  console.log(tempOptions);
                   request.get(tempOptions, (err, responseTwo, images) => {
                       const data = JSON.parse(images).data;
-                      total += data.length - 1;
                       data.forEach((i,index) => {
                           let url = (i.url_zoom);
                           download(url, `images${id}/${names[j]}${index === 0 ? '' : '-' + pad(index, 4)}`, () => {
                               current++;
-                              drawStatus(current,total);
+                              /*drawStatus(current,total);*/
+                              console.log(current);
+                              console.log(total);
                               setTimeout(() => {
-                                  if (j === productIds.length - 1 && index === data.length -1)  {
+                                  if (current === total)  {
+                                      console.log('beggining zip');
                                       let output = fs.createWriteStream(__dirname + `/pictures${id.slice(4, 8)}.zip`);
 
                                       let archive = archiver('zip', {
-                                          zlib: {level: 9}
+                                          zlib: {level: 1}
                                       });
+
+
+                                      archive.on('progress', () => {
+                                         console.log(archive)
+                                      });
+
 
                                       output.on('close', () => {
                                           res.download(__dirname + `/pictures${id.slice(4, 8)}.zip`, () => {
                                               deleteImages(id);
                                               fs.unlink(__dirname + `/pictures${id.slice(4, 8)}.zip`, () => {
                                                   console.log('Deleted Zip File')
-                                              })
+                                              });
                                           });
 
                                       });
@@ -151,12 +108,78 @@ module.exports = {
                                       archive.directory(path.join(__dirname, '../', `/images${id}/`), false);
                                       archive.finalize();
                                   }
-                              }, 80)
+                              })
                           })
                       })
                   })
               })
-          }, 2000);
+          }, 5000);
+      })
+  },
+
+  submitThree : (req,res) => {
+      const hash = req.body.url;
+      const id = req.body.name;
+      const token = req.body.token;
+      const myStore = new toolbox(token,id,hash);
+      let   urlArray = [];
+      const urlFull = new Promise((resolve,reject) => {
+          myStore.getProductIds(ids =>{
+              ids.forEach((id,index) => {
+                  console.log(index);
+                  myStore.getProductImageUrls(id, urls => {
+                      console.log(id);
+                      urlArray.push(urls);
+                      if(urlArray.length === ids.length){
+                          resolve(urlArray);
+                      }
+
+                  })
+              })
+          })
+      });
+
+
+      urlFull.then(urls => {
+          let processed = 0;
+          const imageUrls = flat(urls);
+          fs.mkdir(path.join(__dirname,'../',`images${myStore.hash}/`), () => {
+              console.log('Created '+id)
+          });
+          imageUrls.forEach((url, num) => {
+              download(url, `images${myStore.hash}/${num}`, () => {
+                  processed++;
+                  if(processed === imageUrls.length){
+                      console.log('beggining zip');
+                       let output = fs.createWriteStream(__dirname + `/pictures${myStore.hash}.zip`);
+
+                       let archive = archiver('zip', {
+                           zlib: {level: 8}
+                       });
+
+
+                       archive.on('progress', () => {
+                           console.log('archived');
+                       });
+
+
+                       output.on('close', () => {
+                           res.download(__dirname + `/pictures${myStore.hash}.zip`, () => {
+                               deleteImages(id);
+                               fs.unlink(__dirname + `/pictures${myStore.hash}.zip`, () => {
+                                   console.log('Deleted Zip File')
+                               });
+                           });
+
+                       });
+
+
+                       archive.pipe(output);
+                       archive.directory(path.join(__dirname, '../', `/images${myStore.hash}/`), false);
+                       archive.finalize();
+                  }
+              })
+          })
       })
   },
 
@@ -209,3 +232,44 @@ const drawStatus = (current, total) =>{
     }
     console.log(`[${status}]`)
 };
+
+const flat = array => {
+  let final = [];
+  array.forEach(arr => {
+      final = final.concat(arr);
+  });
+
+  return final;
+};
+
+console.reset = function () {
+    return process.stdout.write('\033c');
+};
+
+/*console.log('beggining zip');
+                      let output = fs.createWriteStream(__dirname + `/pictures${myStore.hash}.zip`);
+
+                      let archive = archiver('zip', {
+                          zlib: {level: 8}
+                      });
+
+
+                      archive.on('progress', () => {
+                          console.log('archived');
+                      });
+
+
+                      output.on('close', () => {
+                          res.download(__dirname + `/pictures${myStore.hash}.zip`, () => {
+                              deleteImages(id);
+                              fs.unlink(__dirname + `/pictures${myStore.hash}.zip`, () => {
+                                  console.log('Deleted Zip File')
+                              });
+                          });
+
+                      });
+
+
+                      archive.pipe(output);
+                      archive.directory(path.join(__dirname, '../', `/images${myStore.hash}/`), false);
+                      archive.finalize();*/
